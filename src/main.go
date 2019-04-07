@@ -3,22 +3,28 @@ package main
 import (
 	"./token"
 	"fmt"
-	"time"
 )
 
 func main() {
-	tk, err := token.NewToken("GAME_ID", "auth")
+	tk, err := token.NewToken("client_Id", "user_name", []string{"auth", "login"}, "idfa")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(1, tk.String())
+	fmt.Println("token str:", tk.String())
 
-	newtoken, err := token.ParseToken(tk.String()+"")
+	newtoken, err := token.ParseToken(tk.String())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(2, newtoken)
-	time.Sleep(time.Second * 60)
+	fmt.Println("new token str:", newtoken.String())
+
+	if newtoken.CheckScopes([]string{"auth"}) {
+		fmt.Println("token has permission")
+	}
+
+	if !newtoken.CheckScopes([]string{"pay"}) {
+		fmt.Println("token has no permission")
+	}
 }

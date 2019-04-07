@@ -11,10 +11,13 @@ import (
 )
 
 type Token struct {
-	raw    string
-	scopes []string
-	ts     int64
-	hmac   []byte
+	raw      string
+	clientId string
+	userName string
+	scopes   map[string]bool
+	deviceId string
+	ts       int64
+	hmac     []byte
 }
 
 type Error struct {
@@ -29,67 +32,90 @@ func (err Error) Error() string {
 	return ""
 }
 
-func NewToken(name string, scopes string) (*Token, error) {
+func NewToken(clientId string, userName string, scopes []string, deviceId string) (*Token, error) {
 	ts, key := GetKey()
-	raw := fmt.Sprintf("%s,%s,%d", name, scopes, ts)
+	scopeStr := strings.Join(scopes, " ")
+	raw := fmt.Sprintf("%s,%s,%s,%s,%s,%d", getRandString(10), clientId, userName, scopeStr, deviceId, ts)
 	h := hmac.New(sha256.New, []byte(key))
 	h.Write([]byte(raw))
 	hmac := h.Sum(nil)
 
-	return &Token{
-		raw:    raw,
-		scopes: strings.Split(scopes, " "),
-		ts:     ts,
-		hmac:   hmac}, nil
+	tk := &Token{
+		raw:      raw,
+		clientId: clientId,
+		userName: userName,
+		scopes:   make(map[string]bool),
+		deviceId: deviceId,
+		ts:       ts,
+		hmac:     hmac}
+	for _, sp := range scopes {
+		tk.scopes[sp] = true
+	}
+	return tk, nil
 }
 
-func NewStaticToken(name string, scopes string, ts int64, hmac []byte) (*Token, error) {
-	raw := fmt.Sprintf("%s,%s,%d", name, scopes, ts)
-	return &Token{
-		raw:    raw,
-		scopes: strings.Split(scopes, " "),
-		ts:     ts,
-		hmac:   hmac}, nil
+func NewStaticToken(randValue string, clientId string, userName string, scopeStr string, deviceId string, ts int64, hmac []byte) (*Token, error) {
+	raw := fmt.Sprintf("%s,%s,%s,%s,%s,%d", randValue, clientId, userName, scopeStr, deviceId, ts)
+	scopes := strings.Split(scopeStr, " ")
+
+	tk := &Token{
+		raw:      raw,
+		clientId: clientId,
+		userName: userName,
+		scopes:   make(map[string]bool),
+		deviceId: deviceId,
+		ts:       ts,
+		hmac:     hmac}
+	for _, sp := range scopes {
+		tk.scopes[sp] = true
+	}
+
+	return tk, nil
 }
 
 func ParseToken(token string) (*Token, error) {
 	data := strings.Split(token, "|")
 	if len(data) != 2 {
-		return nil, Error{5000, "invalid-token-info."}
+		return nil, NewError(ERROR_TOKEN_INVALIDE)
 	}
+
 	raw := data[0]
-	hmacValue := data[1]
+	hmacV := data[1]
 
 	data = strings.Split(raw, ",")
-	if len(data) != 3 {
-		return nil, Error{5000, "invalid-token-info."}
+	if len(data) != 6 {
+		return nil, NewError(ERROR_TOKEN_INVALIDE)
 	}
 
-	ts, err := strconv.ParseInt(data[2], 10, 64)
+	ts, err := strconv.ParseInt(data[5], 10, 64)
 	if err != nil {
-		return nil, Error{5000, "invalid-token-info."}
+		return nil, NewError(ERROR_TOKEN_INVALIDE)
 	}
 
 	key, ret := GetKeyByTs(ts)
 	if ret == false {
-		return nil, Error{5000, "invalid-token-info."}
+		return nil, NewError(ERROR_TOKEN_EXPIRED)
 	}
 
 	encoder := hmac.New(sha256.New, []byte(key))
 	encoder.Write([]byte(raw))
-	hash, err := hex.DecodeString(hmacValue)
+	hash, err := hex.DecodeString(hmacV)
 	newhmac := encoder.Sum(nil)
 	if err != nil || !hmac.Equal(newhmac, hash) {
-		return nil, Error{5001, "failed-checksum."}
+		return nil, NewError(ERROR_TOKEN_INVALIDE)
 	}
-	return NewStaticToken(data[0], data[1], ts, hash)
+	return NewStaticToken(data[0], data[1], data[2], data[3], data[4], ts, hash)
 }
 
 func (self *Token) String() string {
 	return fmt.Sprintf("%s|%s", self.raw, hex.EncodeToString(self.hmac))
 }
 
-
-
-
-
+func (self *Token) CheckScopes(scopes []string) bool {
+	for _, sp := range scopes {
+		if _, ok := self.scopes[sp]; !ok {
+			return false
+		}
+	}
+	return true
+}

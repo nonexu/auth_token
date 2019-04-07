@@ -1,26 +1,26 @@
 package token
 
-import(
+import (
 	"math/rand"
-	"time"
 	"sync"
+	"time"
 )
 
 type KeyInfo struct {
-	keys map[int64]string
+	keys  map[int64]string
 	mutex sync.Mutex
-}	
+}
 
 var keys *KeyInfo
 
 const (
-	base = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	SecondDay = 24*3600
+	base      = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	SecondDay = 24 * 3600
 )
 
 func init() {
 	keys = &KeyInfo{
-		keys : make(map[int64]string),
+		keys: make(map[int64]string),
 	}
 	keys.InitKeys()
 	go keys.UpdateKeyLoop()
@@ -31,11 +31,11 @@ func (this *KeyInfo) InitKeys() {
 	defer this.mutex.Unlock()
 
 	this.keys = make(map[int64]string)
-	for i:= 0;i<=2;i++{
-		ts := time.Now().Unix() - int64(2* i *SecondDay)
+	for i := 0; i <= 2; i++ {
+		ts := time.Now().Unix() - int64(2*i*SecondDay)
 		value := getRandString(10)
 		this.keys[ts] = value
-	} 
+	}
 }
 
 func (this *KeyInfo) GetKey() (int64, string) {
@@ -43,12 +43,12 @@ func (this *KeyInfo) GetKey() (int64, string) {
 	defer this.mutex.Unlock()
 	ts := int64(0)
 	serial := ""
-	for key, value := range this.keys{
+	for key, value := range this.keys {
 		if key > ts {
 			ts = key
 			serial = value
 		}
-	}	
+	}
 	return ts, serial
 }
 
@@ -59,7 +59,7 @@ func (this *KeyInfo) GetKeyByTs(ts int64) (string, bool) {
 	return key, ok
 }
 
-func  (this *KeyInfo) UpdateKeyLoop() {
+func (this *KeyInfo) UpdateKeyLoop() {
 	for {
 		select {
 		case <-time.After(2 * time.Second):
@@ -72,7 +72,7 @@ func (this *KeyInfo) UpdateKey() {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 
-	tmpKey := make([]int64,0)
+	tmpKey := make([]int64, 0)
 	tdTs := time.Now().Unix() - int64(2*SecondDay)
 	for ts, _ := range this.keys {
 		if ts <= tdTs {
@@ -85,20 +85,20 @@ func (this *KeyInfo) UpdateKey() {
 	}
 
 	keyLen := len(this.keys)
-	for i:= 1; i <= 3 - keyLen; i++ {
-		ts := time.Now().Unix() - int64((i-1) *SecondDay)
+	for i := 1; i <= 3-keyLen; i++ {
+		ts := time.Now().Unix() - int64((i-1)*SecondDay)
 		value := getRandString(10)
-		this.keys[ts] = value		
+		this.keys[ts] = value
 	}
 }
 
-func getRandString(length int) string{
+func getRandString(length int) string {
 	array := make([]byte, length)
 	diclen := len(base)
 	for i := 0; i < length; i++ {
 		array[i] = base[rand.Int()%diclen]
 	}
-	return string(array)	
+	return string(array)
 }
 
 func GetKey() (int64, string) {
@@ -108,10 +108,3 @@ func GetKey() (int64, string) {
 func GetKeyByTs(ts int64) (string, bool) {
 	return keys.GetKeyByTs(ts)
 }
-
-
-
-
-
-
-
